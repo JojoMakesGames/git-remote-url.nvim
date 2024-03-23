@@ -1,36 +1,96 @@
 local M = {}
-local function build_url(branch)
-	local git_url = vim.fn.system("git config --get remote.origin.url")
+local function get_git_url_info(branch, local_path)
+	local isCurrentPath = false
+	local isCurrentBranch = false
+	local path = local_path
+	if path == nil then
+		isCurrentPath = true
+		path = vim.fn.expand("%:p")
+		if path == "" then
+			print("No file is open, nor was a path supplied")
+			return
+		end
+	end
+	if string.find(path, "oil://", 1, true) then
+		path = path:sub(7, -1)
+	end
+	-- ensure absolute path
+	path = vim.fn.fnamemodify(path:gsub("\n", ""), ':p')
+	local isDir = (vim.fn.isdirectory(path) == 1)
+	local forgit = path
+	if not isDir then
+		forgit = path:match("(.*[/\\])")
+	end
+	local git_url = vim.fn.system("git -C " .. forgit .. " config --get remote.origin.url"):gsub("\n", "")
 	if git_url == "" then
-		error("Not a git repository")
+		print("Not a git repository")
+		return
+	elseif git_url:sub(-4) == ".git" then
+		git_url = git_url:sub(1, -5)
+	end
+	-- gets the absolute path, then subtracts the git repository root from it and the /.
+	local relgitpath = path:sub(#vim.fn.system("git -C " .. forgit .. " rev-parse --show-toplevel"):gsub("\n", "") + 2)
+	local resolved_branch = vim.fn.system("git -C " .. forgit .. " branch --show-current"):gsub("\n", "")
+	if branch == nil then
+		isCurrentBranch = true
+	elseif resolved_branch == branch then
+		isCurrentBranch = true
+	else
+		resolved_branch = branch
+	end
+
+	local lnSuffix = ""
+	if not isDir and isCurrentPath and isCurrentBranch then
+		local stsel = vim.fn.line(".")
+		local endsel = vim.fn.line("v")
+		if stsel == endsel then
+			lnSuffix = "#L" .. stsel
+		elseif stsel < endsel then
+			lnSuffix = "#L" .. stsel .. "-L" .. endsel
+		elseif stsel > endsel then
+			lnSuffix = "#L" .. endsel .. "-L" .. stsel
+		end
+	end
+	return {
+		git_url    = git_url,
+		branch     = resolved_branch,
+		relgitpath = relgitpath,
+		lnSuffix   = lnSuffix,
+	}
+end
+
+local function build_git_url(git_url, branch, relgitpath, lnSuffix)
+	if string.find(git_url, "https://github.com", 1, true) then
+		return git_url .. "/blob/" .. branch .. "/" .. relgitpath .. lnSuffix
+	elseif string.find(git_url, "git@github.com", 1, true) then
+		local new_git_url = "https://" .. git_url:sub(5):gsub(":", "/", 1)
+		return new_git_url .. "/blob/" .. branch .. "/" .. relgitpath .. lnSuffix
+	else
+		print("currently only supports github.com links")
 		return
 	end
-	if string.find(git_url, "https://") then
-		git_url = string.sub(git_url, 1, -6)
-	elseif string.find(git_url, "git@") then
-		git_url = "https://github.com/" .. string.sub(git_url, 16, -1)
-	end
+end
 
-	local path = vim.fn.expand("%")
-	local lineNum = vim.api.nvim__buf_stats(0).current_lnum
-	if branch == nil then
-		branch = "main"
-	end
-	local combined = git_url .. "/blob/" .. branch .. "/" .. path .. "#L" .. lineNum
+function M.get_git_remote_url(desired_branch, local_path)
+	local url_info = get_git_url_info(desired_branch, local_path) or {}
+	local git_url = url_info.git_url or ""
+	local branch = url_info.branch or ""
+	local relgitpath = url_info.relgitpath or ""
+	local lnSuffix = url_info.lnSuffix or ""
+	return build_git_url(git_url, branch, relgitpath, lnSuffix)
+end
 
-	return combined
+function M.git_url_to_clipboard(desired_branch, local_path)
+	vim.fn.setreg("+", M.get_git_remote_url(desired_branch, local_path))
 end
 
 M.setup = function(opts)
 	vim.api.nvim_create_user_command('CopyGithubLink', function()
-		local combined = build_url()
-		vim.fn.setreg("+", combined)
+		M.git_url_to_clipboard("main")
 	end, {})
 
 	vim.api.nvim_create_user_command('CopyGithubLinkWithBranchName', function()
-		local branch = string.sub(vim.fn.system("git branch --show-current"), 1, -2)
-		local combined = build_url(branch)
-		vim.fn.setreg("+", combined)
+		M.git_url_to_clipboard()
 	end, {})
 end
 
