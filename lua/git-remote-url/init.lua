@@ -22,16 +22,16 @@ local function build_url(branch)
 end
 
 M.setup = function(opts)
-	vim.keymap.set("n", "<leader>yg", function()
+	vim.api.nvim_create_user_command('CopyGithubLink', function()
 		local combined = build_url()
 		vim.fn.setreg("+", combined)
-	end)
+	end, {})
 
-	vim.keymap.set("n", "<leader>yG", function()
+	vim.api.nvim_create_user_command('CopyGithubLinkWithBranchName', function()
 		local branch = string.sub(vim.fn.system("git branch --show-current"), 1, -2)
 		local combined = build_url(branch)
 		vim.fn.setreg("+", combined)
-	end)
+	end, {})
 end
 
 return M
