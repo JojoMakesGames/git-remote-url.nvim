@@ -40,7 +40,7 @@ local function get_git_url_info(branch, local_path, select_start, select_end)
 	end
 
 	local lnSuffix = ""
-	if not isDir and isCurrentPath and isCurrentBranch then
+	if not isDir and ((isCurrentPath and isCurrentBranch) or (select_start ~= nil and select_end ~= nil)) then
 		local stsel = select_start or vim.fn.line(".")
 		local endsel = select_end or vim.fn.line("v")
 		if stsel == endsel then
@@ -86,11 +86,15 @@ end
 
 M.setup = function(opts)
 	vim.api.nvim_create_user_command('CopyGithubLink', function(args)
-		M.git_url_to_clipboard("main", nil, args.line1, args.line2)
-	end, { range = true })
-
-	vim.api.nvim_create_user_command('CopyGithubLinkWithBranchName', function(args)
-		M.git_url_to_clipboard(nil, nil, args.line1, args.line2)
+		local branch = (args.fargs or {})[1]
+		local path = (args.fargs or {})[2]
+		if branch ~= nil then
+			branch = branch:sub(2, -2)
+		end
+		if path ~= nil then
+			path = path:sub(2, -2)
+		end
+		M.git_url_to_clipboard(branch, path, args.line1, args.line2)
 	end, { range = true })
 end
 

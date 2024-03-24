@@ -24,11 +24,11 @@ return {
   opts = {},
   keys = {
     {
-      '<leader>yg', ':CopyGithubLink<CR>'
+      '<leader>yg', ':CopyGithubLink "main"<CR>'
       mode = '', desc = 'Git Remote Url main branch',
     },
     {
-      '<leader>yG', ':CopyGithubLinkWithBranchName<CR>'
+      '<leader>yG', ':CopyGithubLink<CR>'
       mode = '', desc = 'Git Remote Url',
     },
   },
